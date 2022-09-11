@@ -17,15 +17,14 @@ _fzf_images_menu(){
 # ! run selection on tmux-fzf or another window and send to previous pane
 _fzf_images_entry_selection(){ 
   if [ ! -z "$1" ]; then 
-    case $selection in
-    "tar")
-       _fzf_images_fzf_$1; 
-       ;;
-    "local")
-       _fzf_images_fzf_$1; 
-       ;;
+    case $1 in
+      "tar")
+        _fzf_images_fzf_tar ;;
+      "local")
+        _fzf_images_fzf_local ;;
+      *)
+        _fzf_images_fzf_registry $1 ;;
     esac
-    _fzf_images_fzf_registry $1
   fi
 }
 
@@ -41,7 +40,7 @@ _fzf_images_fzf_registry(){
   _fzf_images_tags_registry $1 | sed '1i REPOSITORY TAG' | column -t | fzf \
     --multi \
     --header-lines=1 \
-      --bind 'enter:execute(sh fzf_images _fzf_images_action_run {1}:{2})+abort'
+      --bind 'enter:execute-silent(sh fzf_images _fzf_images_action_run /{1}:{2})+abort'
   tmux setenv -u FZF_IMAGES_REGISTRY
 }
 
@@ -59,7 +58,7 @@ _fzf_images_fzf_local(){
   $FZF_IMAGES_CLIENT images | fzf \
     --multi \
     --header-lines=1 \
-      --bind 'enter:execute(sh fzf_images _fzf_images_action_run {3})+abort' \
+      --bind 'enter:execute-silent(sh fzf_images _fzf_images_action_run {3})+abort' \
     --preview-window right,60% \
     --preview 'sh fzf_images _fzf_images_preview_inspect {3} | bat --plain -l json'
 }
@@ -85,7 +84,7 @@ _fzf_images_action_run(){
   else
     COMMAND="run -ti --rm -p $PORT:$PORT"
   fi
-  tmux send-keys "$FZF_IMAGES_CLIENT $COMMAND $FZF_IMAGES_REGISTRY/$1" Enter
+  tmux send-keys "$FZF_IMAGES_CLIENT $COMMAND $FZF_IMAGES_REGISTRY$1" Enter
   tmux setenv -u FZF_IMAGES_PORT
 }
 
