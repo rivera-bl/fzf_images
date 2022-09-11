@@ -33,10 +33,18 @@ _fzf_images_entry_selection(){
 ### ENTRIES
 #####################
 
-# ! list images with tags
-#  aws ecr describe-repositories --region us-east-1 | jq ".repositories[].repositoryUri" |  tr -d "\""
 _fzf_images_fzf_registry(){
-  if [ ! -z "$1" ]; then _fzf_images_auth_registry; fi
+  if [ ! -z "$1" ]; then _fzf_images_auth_registry $1; fi
+  FZF_IMAGES_REGISTRY_REPOS=$(aws ecr describe-repositories | \
+    jq -r ".repositories[].repositoryName")
+  for repo in ${FZF_IMAGES_REGISTRY_REPOS[@]} ; do
+    FZF_IMAGES_REGISTRY_TAGS="$(aws ecr list-images --repository-name $repo | \
+      jq -r '.imageIds[].imageTag')"
+    for tag in ${FZF_IMAGES_REGISTRY_TAGS[@]} ; do
+      FZF_IMAGES_REGISTRY_IMAGES+="$repo $tag\n"
+    done
+  done
+  echo -e "$FZF_IMAGES_REGISTRY_IMAGES"
 }
 
 _fzf_images_fzf_tar(){
