@@ -4,35 +4,57 @@ FZF_IMAGES_CLIENT="docker"
 FZF_IMAGES_ENTRIES=("tar"
                     "local")
 
-# - [ ] kubectl-fzf actions for images
-#   - [x] list local images
-#   - [x] create some testing material, terraform registry, tars
-#   - [x] run image
-#   - [ ] action load tar
-#   - [ ] add headers fzf_tar
-#   - [ ] push image to remote
-#   - [x] set tmux env of FZF_IMAGES_CLIENT
-#   - [ ] run selection on tmux-fzf or another window and send to previous pane
-#   - [x] list tars
-#   - [x] create menu with local,tar
-#   - [ ] MENU1 PREVIEW bat show information about the registry
-      # - like a preview of the list
-      # - ?list of repos?tags?images?
-#   - [x] MENU2 PREVIEW bat show docker inspect of the image
-#   - [ ] create a binary and nixify
+# ! bat preview show list of images
+# ! bat preview show info of the registry
+# ! bind action to go back to menu
+_fzf_images_menu(){ 
+  REGISTRIES=$(_fzf_images_get_registry)
+  FZF_IMAGES_ENTRIES=("${FZF_IMAGES_ENTRIES[@]}" "${REGISTRIES[@]}")
+  _fzf_images_entry_selection \
+    $(printf "%s\n" "${FZF_IMAGES_ENTRIES[@]}" | fzf-tmux -p) 
+}
+
+# ! run selection on tmux-fzf or another window and send to previous pane
+_fzf_images_entry_selection(){ 
+  if [ ! -z "$1" ]; then 
+    case $selection in
+    "tar")
+       _fzf_images_fzf_$1; 
+       ;;
+    "local")
+       _fzf_images_fzf_$1; 
+       ;;
+    esac
+    _fzf_images_fzf_registry
+  fi
+}
 
 #####################
-### PREVIEW
+### ENTRIES
 #####################
 
-# ! tee save multiple values to array
-_fzf_images_preview_inspect(){
-  FZF_IMAGES_PREVIEW_LOCAL=$($FZF_IMAGES_CLIENT inspect $1)
-  { PORT=$( echo "$FZF_IMAGES_PREVIEW_LOCAL" | tee /dev/fd/3 | \
-    jq -r '.[].Config.ExposedPorts | keys[]' | \
-    awk -F "/" '{print $1}'); \
-  } 3>&1
-  tmux setenv FZF_IMAGES_PORT $PORT
+# ! on execute should change $AWS_PROFILE to this account
+# ! if no input added then send to aws default repo of AWS_PROFILE
+_fzf_images_fzf_registry(){
+
+}
+
+_fzf_images_fzf_tar(){
+  find . -iname "*.tar" | sed '1i TAR' | column -t | fzf \
+    --multi \
+    --header-lines=1 \
+      --bind 'enter:execute-multi(sh fzf_images _fzf_images_action_load {1})+abort'
+}
+
+# ! set this to run on fzf-tmux -p
+# ! push image to remote
+_fzf_images_fzf_local(){
+  $FZF_IMAGES_CLIENT images | fzf \
+    --multi \
+    --header-lines=1 \
+      --bind 'enter:execute(sh fzf_images _fzf_images_action_run {3})+abort' \
+    --preview-window right,60% \
+    --preview 'sh fzf_images _fzf_images_preview_inspect {3} | bat --plain -l json'
 }
 
 #####################
@@ -57,37 +79,30 @@ _fzf_images_action_run(){
 }
 
 #####################
-### ENTRIES
+### PREVIEW
 #####################
 
-_fzf_images_fzf_tar(){
-  find . -iname "*.tar" | sed '1i TAR' | column -t | fzf \
-    --multi \
-    --header-lines=1 \
-      --bind 'enter:execute-multi(sh fzf_images _fzf_images_action_load {1})+abort'
+# ! tee save multiple values to array
+_fzf_images_preview_inspect(){
+  FZF_IMAGES_PREVIEW_LOCAL=$($FZF_IMAGES_CLIENT inspect $1)
+  { PORT=$( echo "$FZF_IMAGES_PREVIEW_LOCAL" | tee /dev/fd/3 | \
+    jq -r '.[].Config.ExposedPorts | keys[]' | \
+    awk -F "/" '{print $1}'); \
+  } 3>&1
+  tmux setenv FZF_IMAGES_PORT $PORT
 }
 
-# ! set this to run on fzf-tmux -p
-_fzf_images_fzf_local(){
-  $FZF_IMAGES_CLIENT images | fzf \
-    --multi \
-    --header-lines=1 \
-      --bind 'enter:execute(sh fzf_images _fzf_images_action_run {3})+abort' \
-    --preview-window right,60% \
-    --preview 'sh fzf_images _fzf_images_preview_inspect {3} | bat --plain -l json'
-}
+#####################
+### HELPERS
+#####################
 
-# ! add to FZF_IMAGES_ENTRIES the repositories listed in containers/auth.json
-# ! if no input added then send to aws default repo of AWS_PROFILE
-#   name function _fzf_images_fzf_
-_fzf_images_menu(){ 
-  _fzf_images_entry_selection \
-    $(printf "%s\n" "${FZF_IMAGES_ENTRIES[@]}" | fzf-tmux -p) 
-}
-
-# ! convert tmux setenv into a zsh _helper_function
-_fzf_images_entry_selection(){ 
-  _fzf_images_fzf_$1 
+_fzf_images_get_registry(){
+  if [[ $FZF_IMAGES_CLIENT == "podman" ]]; then
+    AUTH_FILE=~/.config/containers/auth.json
+  elif [[ $FZF_IMAGES_CLIENT == "docker" ]]; then
+    AUTH_FILE=~/.docker/config.json
+  fi
+  cat $AUTH_FILE | jq -r '.credHelpers | keys[]'
 }
 
 $@
