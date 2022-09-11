@@ -33,18 +33,16 @@ _fzf_images_entry_selection(){
 ### ENTRIES
 #####################
 
+# ! scan with trivy
+# ! preview inspect
+# ! columns for account,region,date
 _fzf_images_fzf_registry(){
-  if [ ! -z "$1" ]; then _fzf_images_auth_registry $1; fi
-  FZF_IMAGES_REGISTRY_REPOS=$(aws ecr describe-repositories | \
-    jq -r ".repositories[].repositoryName")
-  for repo in ${FZF_IMAGES_REGISTRY_REPOS[@]} ; do
-    FZF_IMAGES_REGISTRY_TAGS="$(aws ecr list-images --repository-name $repo | \
-      jq -r '.imageIds[].imageTag')"
-    for tag in ${FZF_IMAGES_REGISTRY_TAGS[@]} ; do
-      FZF_IMAGES_REGISTRY_IMAGES+="$repo $tag\n"
-    done
-  done
-  echo -e "$FZF_IMAGES_REGISTRY_IMAGES"
+  tmux setenv FZF_IMAGES_REGISTRY $1
+  _fzf_images_tags_registry $1 | sed '1i REPOSITORY TAG' | column -t | fzf \
+    --multi \
+    --header-lines=1 \
+      --bind 'enter:execute(sh fzf_images _fzf_images_action_run {1}:{2})+abort'
+  tmux setenv -u FZF_IMAGES_REGISTRY
 }
 
 _fzf_images_fzf_tar(){
@@ -56,6 +54,7 @@ _fzf_images_fzf_tar(){
 
 # ! set this to run on fzf-tmux -p
 # ! push image to remote
+# ! image rm
 _fzf_images_fzf_local(){
   $FZF_IMAGES_CLIENT images | fzf \
     --multi \
@@ -78,11 +77,15 @@ _fzf_images_action_load(){
   # tmux send-keys "echo -e \"$LOADED\""
 }
 
-# ! account for null values of $PORT
 _fzf_images_action_run(){
+  export $(tmux showenv | grep '^FZF_IMAGES_REGISTRY')
   PORT=$(tmux showenv | grep '^FZF_IMAGES_PORT' | awk -F '=' '{print $2}')
-  COMMAND="run -ti --rm -p $PORT:$PORT"
-  tmux send-keys "$FZF_IMAGES_CLIENT $COMMAND $1" Enter
+  if [[ -z "$PORT" ]]; then
+    COMMAND="run -ti --rm"
+  else
+    COMMAND="run -ti --rm -p $PORT:$PORT"
+  fi
+  tmux send-keys "$FZF_IMAGES_CLIENT $COMMAND $FZF_IMAGES_REGISTRY/$1" Enter
   tmux setenv -u FZF_IMAGES_PORT
 }
 
@@ -103,6 +106,22 @@ _fzf_images_preview_inspect(){
 #####################
 ### HELPERS
 #####################
+
+# note: this is slow because `--repository-name` is mandatory
+# ! could do it the first time the script is launched and save it to a file, and reload on --bind
+_fzf_images_tags_registry(){
+  # if [ ! -z "$1" ]; then _fzf_images_auth_registry $1; fi
+  FZF_IMAGES_REGISTRY_REPOS=$(aws ecr describe-repositories | \
+    jq -r ".repositories[].repositoryName")
+  for repo in ${FZF_IMAGES_REGISTRY_REPOS[@]} ; do
+    FZF_IMAGES_REGISTRY_TAGS="$(aws ecr list-images --repository-name $repo | \
+      jq -r '.imageIds[].imageTag')"
+    for tag in ${FZF_IMAGES_REGISTRY_TAGS[@]} ; do
+      FZF_IMAGES_REGISTRY_IMAGES+="$repo $tag\n"
+    done
+  done
+  echo -e "$FZF_IMAGES_REGISTRY_IMAGES"
+}
 
 _fzf_images_get_registry(){
   if [[ $FZF_IMAGES_CLIENT == "podman" ]]; then
