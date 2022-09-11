@@ -25,7 +25,7 @@ _fzf_images_entry_selection(){
        _fzf_images_fzf_$1; 
        ;;
     esac
-    _fzf_images_fzf_registry
+    _fzf_images_fzf_registry $1
   fi
 }
 
@@ -33,10 +33,10 @@ _fzf_images_entry_selection(){
 ### ENTRIES
 #####################
 
-# ! on execute should change $AWS_PROFILE to this account
-# ! if no input added then send to aws default repo of AWS_PROFILE
+# ! list images with tags
+#  aws ecr describe-repositories --region us-east-1 | jq ".repositories[].repositoryUri" |  tr -d "\""
 _fzf_images_fzf_registry(){
-
+  if [ ! -z "$1" ]; then _fzf_images_auth_registry; fi
 }
 
 _fzf_images_fzf_tar(){
@@ -103,6 +103,14 @@ _fzf_images_get_registry(){
     AUTH_FILE=~/.docker/config.json
   fi
   cat $AUTH_FILE | jq -r '.credHelpers | keys[]'
+}
+
+# note: this assumes that theres a profile defined in .aws/credentials in the format [ACCOUNT_*]
+_fzf_images_auth_registry(){
+  FZF_IMAGES_REGISTRY_AWS_ACCOUNT=$(echo "$1" | awk -F '.' '{print $1}')
+  FZF_IMAGES_REGISTRY_AWS_PROFILE=$(cat ~/.aws/credentials | \ 
+    grep -o -P "(?<=\[)$FZF_IMAGES_REGISTRY_AWS_ACCOUNT.*(?=\])")
+  export AWS_PROFILE=$FZF_IMAGES_REGISTRY_AWS_PROFILE
 }
 
 $@
