@@ -1,6 +1,7 @@
 #!/bin/sh
 
 FZF_IMAGES_CLIENT="podman"
+FZF_IMAGES_TAGS_REGISTRY_DIR=/tmp/.fzf_images_cache
 FZF_IMAGES_ENTRIES=("tar"
                     "local")
 AWS_REGION="us-east-1" # set with tmux setenv outside of the script
@@ -106,22 +107,28 @@ _fzf_images_preview_inspect(){
 ### HELPERS
 #####################
 
-# note: this is slow because `--repository-name` is mandatory
-# ! do it the first time the script is launched and save it to a file, and reload on --bind
 # note: doesn't show untagged images because no [] sending error to /dev/null
 # ! show size in MB
 # ! split PUSHED by date/time
 # ! sort based on date/time in descending order
 _fzf_images_tags_registry(){
   if [[ ! -z "$1" ]]; then _fzf_images_auth_registry $1; fi
-  FZF_IMAGES_REGISTRY_REPOS=$(aws ecr describe-repositories --region $AWS_REGION | \
-    jq -r ".repositories[].repositoryName")
-  for repo in ${FZF_IMAGES_REGISTRY_REPOS[@]} ; do
-    FZF_IMAGES_REGISTRY_IMAGES+="$(aws ecr describe-images --repository-name $repo --region $AWS_REGION | \
-      jq -r '.imageDetails[] | "\(.repositoryName) \(.imageTags[]) \(.imagePushedAt) \(.imageSizeInBytes)"' 2>/dev/null)\n"
-  done
-  echo -e "$FZF_IMAGES_REGISTRY_IMAGES" | \
-    sort | sed '1i REPOSITORY TAG PUSHED SIZE' | column -t
+  mkdir -p $FZF_IMAGES_TAGS_REGISTRY_DIR
+  FZF_IMAGES_TAGS_REGISTRY_FILE=$FZF_IMAGES_TAGS_REGISTRY_DIR/$1
+
+  if [[ -f "$FZF_IMAGES_TAGS_REGISTRY_FILE" ]]; then
+    cat $FZF_IMAGES_TAGS_REGISTRY_FILE
+  else
+    FZF_IMAGES_REGISTRY_REPOS=$(aws ecr describe-repositories --region $AWS_REGION | \
+      jq -r ".repositories[].repositoryName")
+    for repo in ${FZF_IMAGES_REGISTRY_REPOS[@]} ; do
+      FZF_IMAGES_REGISTRY_IMAGES+="$(aws ecr describe-images --repository-name $repo --region $AWS_REGION | \
+        jq -r '.imageDetails[] | "\(.repositoryName) \(.imageTags[]) \(.imagePushedAt) \(.imageSizeInBytes)"' 2>/dev/null)\n"
+    done
+    echo -e "$FZF_IMAGES_REGISTRY_IMAGES" | \
+      sort | sed '1i REPOSITORY TAG PUSHED SIZE' | column -t | \
+      tee $FZF_IMAGES_TAGS_REGISTRY_FILE
+  fi
 }
 
 _fzf_images_get_registry(){
