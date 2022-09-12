@@ -1,8 +1,9 @@
 #!/bin/sh
 
-FZF_IMAGES_CLIENT="docker"
+FZF_IMAGES_CLIENT="podman"
 FZF_IMAGES_ENTRIES=("tar"
                     "local")
+AWS_REGION="us-east-1" # set with tmux setenv outside of the script
 
 # ! bat preview show list of images
 # ! bat preview show info of the registry
@@ -34,10 +35,9 @@ _fzf_images_entry_selection(){
 
 # ! scan with trivy
 # ! preview inspect
-# ! columns for account,region,date
 _fzf_images_fzf_registry(){
   tmux setenv FZF_IMAGES_REGISTRY $1
-  _fzf_images_tags_registry $1 | sed '1i REPOSITORY TAG' | column -t | fzf \
+  _fzf_images_tags_registry $1 | fzf \
     --multi \
     --header-lines=1 \
       --bind 'enter:execute-silent(sh fzf_images _fzf_images_action_run /{1}:{2})+abort'
@@ -107,19 +107,21 @@ _fzf_images_preview_inspect(){
 #####################
 
 # note: this is slow because `--repository-name` is mandatory
-# ! could do it the first time the script is launched and save it to a file, and reload on --bind
+# ! do it the first time the script is launched and save it to a file, and reload on --bind
+# note: doesn't show untagged images because no [] sending error to /dev/null
+# ! show size in MB
+# ! split PUSHED by date/time
+# ! sort based on date/time in descending order
 _fzf_images_tags_registry(){
-  # if [ ! -z "$1" ]; then _fzf_images_auth_registry $1; fi
-  FZF_IMAGES_REGISTRY_REPOS=$(aws ecr describe-repositories | \
+  if [[ ! -z "$1" ]]; then _fzf_images_auth_registry $1; fi
+  FZF_IMAGES_REGISTRY_REPOS=$(aws ecr describe-repositories --region $AWS_REGION | \
     jq -r ".repositories[].repositoryName")
   for repo in ${FZF_IMAGES_REGISTRY_REPOS[@]} ; do
-    FZF_IMAGES_REGISTRY_TAGS="$(aws ecr list-images --repository-name $repo | \
-      jq -r '.imageIds[].imageTag')"
-    for tag in ${FZF_IMAGES_REGISTRY_TAGS[@]} ; do
-      FZF_IMAGES_REGISTRY_IMAGES+="$repo $tag\n"
-    done
+    FZF_IMAGES_REGISTRY_IMAGES+="$(aws ecr describe-images --repository-name $repo --region $AWS_REGION | \
+      jq -r '.imageDetails[] | "\(.repositoryName) \(.imageTags[]) \(.imagePushedAt) \(.imageSizeInBytes)"' 2>/dev/null)\n"
   done
-  echo -e "$FZF_IMAGES_REGISTRY_IMAGES"
+  echo -e "$FZF_IMAGES_REGISTRY_IMAGES" | \
+    sort | sed '1i REPOSITORY TAG PUSHED SIZE' | column -t
 }
 
 _fzf_images_get_registry(){
@@ -134,9 +136,9 @@ _fzf_images_get_registry(){
 # note: this assumes that theres a profile defined in .aws/credentials in the format [ACCOUNT_*]
 _fzf_images_auth_registry(){
   FZF_IMAGES_REGISTRY_AWS_ACCOUNT=$(echo "$1" | awk -F '.' '{print $1}')
-  FZF_IMAGES_REGISTRY_AWS_PROFILE=$(cat ~/.aws/credentials | \ 
+  FZF_IMAGES_REGISTRY_AWS_PROFILE=$(cat ~/.aws/credentials | \
     grep -o -P "(?<=\[)$FZF_IMAGES_REGISTRY_AWS_ACCOUNT.*(?=\])")
-  export AWS_PROFILE=$FZF_IMAGES_REGISTRY_AWS_PROFILE
+  AWS_PROFILE=$FZF_IMAGES_REGISTRY_AWS_PROFILE
 }
 
 $@
