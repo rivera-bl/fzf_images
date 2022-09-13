@@ -1,21 +1,46 @@
 #!/bin/sh
 
-FZF_IMAGES_CLIENT="docker"
+FZF_IMAGES_CLIENT="podman"
 FZF_IMAGES_TAGS_REGISTRY_DIR=/tmp/.fzf_images_cache
 FZF_IMAGES_ENTRIES=("tar"
                     "local")
 AWS_REGION="us-east-1" # set with tmux setenv outside of the script
 
+# $1 key, $2 value
+_fzf_tmux_layout_setenv(){
+  tmux setenv FZF_IMAGES_LAYOUT $1 && export $(tmux showenv | grep "^FZF_IMAGES_LAYOUT")
+}
+
+# ! function to define the layout and location of the execution in tmux based on case $1
+# ! define in another file
+# ! finish layout_split, send-keys to current window pane
+# ! case pane,window,split
+_fzf_tmux_action_layout(){
+  TMUX_LAYOUT=$(tmux showenv | grep "^FZF_IMAGES_LAYOUT" | awk -F '=' '{print $2}')
+  case $TMUX_LAYOUT in
+    "pane")
+      $1 ;;
+    "window")
+      tmux neww zsh -c "sh ~/code/fzf_images/fzf_images $1" ;;
+    "split")
+      _fzf_images_fzf_local ;;
+  esac
+  # echo hola # pane
+  # tmux neww zsh -c "source ~/code/fzf_images/fzf_images; sh fzf_images _fzf_images_menu"# window
+  # tmux new-window && tmux split-window -h && sh fzf_images _fzf_images_menu # split
+}
+
 # ! add bindings to open in different orientations
 # ! use the binding to tmux setenv $FZF_IMAGES_LAYOUT
-#   use that as $1  _fzf_tmux_action_layout in _fzf_images_entry_selection
+#   use that as $1 for _fzf_tmux_action_layout in _fzf_images_entry_selection
 _fzf_images_menu(){ 
   REGISTRIES=$(_fzf_images_get_registry)
   FZF_IMAGES_ENTRIES=("${FZF_IMAGES_ENTRIES[@]}" "${REGISTRIES[@]}")
   _fzf_images_entry_selection \
     $(printf "%s\n" "${FZF_IMAGES_ENTRIES[@]}" | \
       fzf-tmux -p \
-      --bind 'ctrl-h:execute(tmux send-keys "sh fzf_images _fzf_images_fzf_{1}" Enter)+abort') 
+      --bind 'ctrl-h:execute(sh fzf_images _fzf_tmux_layout_setenv "pane")+accept' \
+      --bind 'ctrl-o:execute(sh fzf_images _fzf_tmux_layout_setenv "window")+accept')
 }
 
 # ! run selection on tmux-fzf or another window and send to previous pane
@@ -24,9 +49,9 @@ _fzf_images_entry_selection(){
   if [ ! -z "$1" ]; then 
     case $1 in
       "tar")
-        _fzf_images_fzf_tar ;;
+        _fzf_tmux_action_layout _fzf_images_fzf_tar ;;
       "local")
-        _fzf_images_fzf_local ;;
+        _fzf_tmux_action_layout _fzf_images_fzf_local ;;
       *)
         _fzf_images_fzf_registry $1 ;;
     esac
@@ -71,21 +96,6 @@ _fzf_images_fzf_local(){
 #####################
 ### ACTION
 #####################
-
-# ! function to define the layout and location of the execution in tmux based on case $1
-# ! define in another file
-# ! finish layout_split, send-keys to current window pane
-# ! case pane,window,split
-_fzf_tmux_action_layout(){
-  if [[ "$1" == "pane" ]]; then 
-    echo "$1"
-  elif [[ "$1" == "window" ]]; then
-    tmux neww zsh -c "$2"
-  fi
-  # echo hola # pane
-  # tmux neww zsh -c "source ~/code/fzf_images/fzf_images; sh fzf_images _fzf_images_menu"# window
-  # tmux new-window && tmux split-window -h && sh fzf_images _fzf_images_menu # split
-}
 
 # ! echo $LOADED from the fzf process but to the tmux pane? goal is to only see the output
 _fzf_images_action_load(){
