@@ -6,29 +6,16 @@ FZF_IMAGES_ENTRIES=("tar"
                     "local")
 AWS_REGION="us-east-1" # set with tmux setenv outside of the script
 
-# ! function to define the layout and location of the execution in tmux based on case $1
-# ! define in another file
-# ! finish layout_split, send-keys to current window pane
-# ! case pane,window,split
-_fzf_tmux_layout(){
-  if [[ "$1" == "pane" ]]; then 
-    echo "$1"
-  elif [[ "$1" == "window" ]]; then
-    tmux neww zsh -c "$2"
-  fi
-  # echo hola # pane
-  # tmux neww zsh -c "source ~/code/fzf_images/fzf_images; sh fzf_images _fzf_images_menu"# window
-  # tmux new-window && tmux split-window -h && sh fzf_images _fzf_images_menu # split
-}
-
-# ! bind action to go back to menu
 # ! add bindings to open in different orientations
-# ! create a second column with the "opening mode" so we can use $2 to define the layout to use
+# ! use the binding to tmux setenv $FZF_IMAGES_LAYOUT
+#   use that as $1  _fzf_tmux_action_layout in _fzf_images_entry_selection
 _fzf_images_menu(){ 
   REGISTRIES=$(_fzf_images_get_registry)
   FZF_IMAGES_ENTRIES=("${FZF_IMAGES_ENTRIES[@]}" "${REGISTRIES[@]}")
   _fzf_images_entry_selection \
-    $(printf "%s\n" "${FZF_IMAGES_ENTRIES[@]}" | fzf-tmux -p) 
+    $(printf "%s\n" "${FZF_IMAGES_ENTRIES[@]}" | \
+      fzf-tmux -p \
+      --bind 'ctrl-h:execute(tmux send-keys "sh fzf_images _fzf_images_fzf_{1}" Enter)+abort') 
 }
 
 # ! run selection on tmux-fzf or another window and send to previous pane
@@ -84,6 +71,21 @@ _fzf_images_fzf_local(){
 #####################
 ### ACTION
 #####################
+
+# ! function to define the layout and location of the execution in tmux based on case $1
+# ! define in another file
+# ! finish layout_split, send-keys to current window pane
+# ! case pane,window,split
+_fzf_tmux_action_layout(){
+  if [[ "$1" == "pane" ]]; then 
+    echo "$1"
+  elif [[ "$1" == "window" ]]; then
+    tmux neww zsh -c "$2"
+  fi
+  # echo hola # pane
+  # tmux neww zsh -c "source ~/code/fzf_images/fzf_images; sh fzf_images _fzf_images_menu"# window
+  # tmux new-window && tmux split-window -h && sh fzf_images _fzf_images_menu # split
+}
 
 # ! echo $LOADED from the fzf process but to the tmux pane? goal is to only see the output
 _fzf_images_action_load(){
