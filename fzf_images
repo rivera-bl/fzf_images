@@ -3,10 +3,10 @@
 FZF_IMAGES_CLIENT="docker"
 FZF_IMAGES_TAGS_REGISTRY_DIR=/tmp/.fzf_images_cache
 FZF_IMAGES_ENTRIES=("tar"
-                    "local")
+                    "localhost")
 AWS_REGION="us-east-1" # set with tmux setenv outside of the script
 
-# $2 value
+# $1 env value
 _fzf_tmux_layout_setenv(){
   tmux setenv FZF_IMAGES_LAYOUT $1 && export $(tmux showenv | grep "^FZF_IMAGES_LAYOUT")
 }
@@ -15,40 +15,27 @@ _fzf_tmux_layout_setenv(){
 # Define the layout and location of the execution in tmux based on $1
 _fzf_tmux_action_layout(){
   TMUX_LAYOUT=$(tmux showenv | grep "^FZF_IMAGES_LAYOUT" | awk -F '=' '{print $2}')
-  COMMAND="clear_screen 2>/dev/null && sh ~/code/fzf_images/fzf_images"
+  COMMAND="sh ~/code/fzf_images/fzf_images"
   tmux setenv -u FZF_IMAGES_LAYOUT
   case $TMUX_LAYOUT in
     "")
       $1 ;;
-    "right-pane")
-      tmux send-keys -t right "$COMMAND $1" ;;
-    "left-pane")
-      tmux send-keys -t left "$COMMAND $1" ;;
     "window")
       tmux neww zsh -c "$COMMAND $1" ;;
     "split")
       tmux new-window && tmux split-window -h && \
         tmux setw synchronize-panes on && \
-        tmux send-keys "$COMMAND $1"  Enter ;;
-    # "*")
-    #   $1 ;;
+        tmux send-keys "clear_screen 2>/dev/null && $COMMAND $1"  Enter ;;
   esac
-  # echo hola # pane
-  # tmux neww zsh -c "source ~/code/fzf_images/fzf_images; sh fzf_images _fzf_images_menu"# window
-  # tmux new-window && tmux split-window -h && sh fzf_images _fzf_images_menu # split
 }
 
-# ! add bindings to open in different orientations
-# ! use the binding to tmux setenv $FZF_IMAGES_LAYOUT
-#   use that as $1 for _fzf_tmux_action_layout in _fzf_images_entry_selection
 _fzf_images_menu(){ 
   REGISTRIES=$(_fzf_images_get_registry)
   FZF_IMAGES_ENTRIES=("${FZF_IMAGES_ENTRIES[@]}" "${REGISTRIES[@]}")
   _fzf_images_entry_selection \
     $(printf "%s\n" "${FZF_IMAGES_ENTRIES[@]}" | \
       fzf-tmux -p \
-      --bind 'ctrl-l:execute(sh fzf_images _fzf_tmux_layout_setenv "right-pane")+accept'   \
-      --bind 'ctrl-w:execute(sh fzf_images _fzf_tmux_layout_setenv "window")+accept' \
+      --bind 'ctrl-o:execute(sh fzf_images _fzf_tmux_layout_setenv "window")+accept' \
       --bind 'ctrl-v:execute-multi(sh fzf_images _fzf_tmux_layout_setenv "split")+accept')
 }
 
@@ -59,7 +46,7 @@ _fzf_images_entry_selection(){
     case $1 in
       "tar")
         _fzf_tmux_action_layout _fzf_images_fzf_tar ;;
-      "local")
+      "localhost")
         _fzf_tmux_action_layout _fzf_images_fzf_local ;;
       *)
         _fzf_images_fzf_registry $1 ;;
