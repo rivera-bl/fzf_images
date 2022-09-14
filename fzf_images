@@ -1,6 +1,6 @@
 #!/bin/sh
 
-FZF_IMAGES_CLIENT="docker"
+FZF_IMAGES_CLIENT="podman"
 FZF_IMAGES_TAGS_REGISTRY_DIR=/tmp/.fzf_images_cache
 FZF_IMAGES_ENTRIES=("localhost")
 
@@ -62,22 +62,58 @@ _fzf_images_fzf_registry(){
   tmux setenv -u FZF_IMAGES_REGISTRY
 }
 
+# --header $'ctrl-d:rm | ctrl-p:push | ctrl-t:trivy\n' \
 _fzf_images_fzf_local(){
   $FZF_IMAGES_CLIENT images | fzf \
     --multi \
     --header-lines=1 \
-      --bind 'space:toggle-preview' \
+    --prompt "$(awk -F '_' '{print $1}' <<< $AWS_PROFILE)> " \
+      --bind 'ctrl-h:toggle-preview' \
       --bind 'enter:execute-silent(sh fzf_images _fzf_images_action_run {3})+abort' \
-      --bind 'ctrl-h:preview(sh fzf_images _fzf_images_preview_inspect {3} | bat --plain -l json)' \
-    --preview-window right,60%
+      --bind 'ctrl-d:execute-multi(sh fzf_images _fzf_images_action_rm {3})+abort' \
+      --bind 'ctrl-p:execute-multi(sh fzf_images _fzf_images_action_push {1},{2})+abort' \
+      --bind 'ctrl-t:execute-multi(sh fzf_images _fzf_images_action_trivy {1},{2})+abort' \
+    --preview-window right,hidden,60% \
+    --preview 'sh fzf_images _fzf_images_preview_inspect {3} | bat --plain -l json'
 }
 
 #####################
 ### ACTION
 #####################
-# ! scan with trivy
-# ! push image to remote
-# ! rm image
+
+_fzf_images_action_rm(){
+  $FZF_IMAGES_CLIENT image rm $@ --force
+}
+
+# ! tmux send-keys show output of what was pushed
+_fzf_images_action_push(){
+  IMAGES=($(awk -F ',' '{print $1}' <<< $@))
+  TAGS=($(awk -F ',' '{print $2}' <<< $@))
+
+  # ?works in sh not zsh
+  for (( i = 0; $i<${#IMAGES[@]}; i++ )); do
+PUSHING="${IMAGES[i]}":"${TAGS[i]}"
+    echo -e "\nPushing: $PUSHING\n"
+    $FZF_IMAGES_CLIENT push $PUSHING
+  done
+  echo -e "\ndone!" && sleep 2s
+}
+
+_fzf_images_action_trivy(){
+  DIR=trivy-$(awk -F '_' '{print $1}' <<< $AWS_PROFILE)-$(date '+%m%d%Y%H%M%S')
+  IMAGES=($(awk -F ',' '{print $1}' <<< $@))
+  TAGS=($(awk -F ',' '{print $2}' <<< $@))
+
+  mkdir $DIR
+  trivy --version > $DIR/_version.txt
+
+  for (( i = 0; $i<${#IMAGES[@]}; i++ )); do
+    SCANNING="${IMAGES[i]}":"${TAGS[i]}"
+    echo -e "\nScanning: $SCANNING\n"
+    trivy image $SCANNING | tee $DIR/${SCANNING##*/}.txt
+  done
+  echo -e "\ndone!" && sleep 2s
+}
 
 _fzf_images_action_run(){
   export $(tmux showenv | grep '^FZF_IMAGES_REGISTRY')
@@ -151,4 +187,3 @@ _fzf_images_auth_registry(){
 }
 
 $@
-
