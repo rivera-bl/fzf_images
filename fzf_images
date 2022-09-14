@@ -1,6 +1,8 @@
 #!/bin/sh
 
-FZF_IMAGES_CLIENT="podman"
+#! fix docker login, try nixos-unstable?
+
+FZF_IMAGES_CLIENT="docker"
 FZF_IMAGES_TAGS_REGISTRY_DIR=/tmp/.fzf_images_cache
 FZF_IMAGES_ENTRIES=("localhost")
 
@@ -18,7 +20,8 @@ _fzf_tmux_action_layout(){
   tmux setenv -u FZF_IMAGES_LAYOUT
   case $TMUX_LAYOUT in
     "")
-      $1 ;;
+      # $1 ;;
+      tmux send-keys -t right "sh fzf_images $1" Enter ;;
     "window")
       tmux neww zsh -c "$COMMAND $1" ;;
     "split")
@@ -59,6 +62,7 @@ _fzf_images_fzf_registry(){
     --multi \
     --header-lines=1 \
       --bind 'enter:execute-silent(sh fzf_images _fzf_images_action_run /{1}:{2})+abort' \
+      --bind 'ctrl-p:execute-multi(sh fzf_images _fzf_images_action_pull {1},{2})+abort' \
       --bind 'ctrl-t:execute-multi(sh fzf_images _fzf_images_action_trivy {1},{2})+abort'
   tmux setenv -u FZF_IMAGES_REGISTRY
 }
@@ -81,7 +85,22 @@ _fzf_images_fzf_local(){
 #####################
 ### ACTION
 #####################
+# ! pull action
 
+_fzf_images_action_pull(){
+  IMAGES=($(awk -F ',' '{print $1}' <<< $@))
+  TAGS=($(awk -F ',' '{print $2}' <<< $@))
+
+  # ?works in sh not zsh
+  for (( i = 0; $i<${#IMAGES[@]}; i++ )); do
+    PULLING="${IMAGES[i]}":"${TAGS[i]}"
+    echo -e "\nPulling: $PULLING\n"
+    $FZF_IMAGES_CLIENT pull $PULLING
+  done
+  echo -e "\ndone!" && sleep 2s
+}
+
+# ! add confirmation
 _fzf_images_action_rm(){
   $FZF_IMAGES_CLIENT image rm $@ --force
 }
