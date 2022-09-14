@@ -2,16 +2,15 @@
 
 FZF_IMAGES_CLIENT="docker"
 FZF_IMAGES_TAGS_REGISTRY_DIR=/tmp/.fzf_images_cache
-FZF_IMAGES_ENTRIES=("tar"
-                    "localhost")
-AWS_REGION="us-east-1" # set with tmux setenv outside of the script
+FZF_IMAGES_ENTRIES=("localhost")
+
+AWS_REGION="us-east-1" # ! set with tmux setenv outside of the script
 
 # $1 env value
 _fzf_tmux_layout_setenv(){
   tmux setenv FZF_IMAGES_LAYOUT $1 && export $(tmux showenv | grep "^FZF_IMAGES_LAYOUT")
 }
 
-#
 # Define the layout and location of the execution in tmux based on $1
 _fzf_tmux_action_layout(){
   TMUX_LAYOUT=$(tmux showenv | grep "^FZF_IMAGES_LAYOUT" | awk -F '=' '{print $2}')
@@ -39,13 +38,9 @@ _fzf_images_menu(){
       --bind 'ctrl-v:execute-multi(sh fzf_images _fzf_tmux_layout_setenv "split")+accept')
 }
 
-# ! run selection on tmux-fzf or another window and send to previous pane
-# ! move tar to be an action of local, not used much
 _fzf_images_entry_selection(){ 
   if [ ! -z "$1" ]; then 
     case $1 in
-      "tar")
-        _fzf_tmux_action_layout _fzf_images_fzf_tar ;;
       "localhost")
         _fzf_tmux_action_layout _fzf_images_fzf_local ;;
       *)
@@ -58,8 +53,6 @@ _fzf_images_entry_selection(){
 ### ENTRIES
 #####################
 
-# ! scan with trivy
-# ! preview inspect
 _fzf_images_fzf_registry(){
   tmux setenv FZF_IMAGES_REGISTRY $1
   _fzf_images_tags_registry $1 | fzf \
@@ -69,38 +62,22 @@ _fzf_images_fzf_registry(){
   tmux setenv -u FZF_IMAGES_REGISTRY
 }
 
-_fzf_images_fzf_tar(){
-  find . -iname "*.tar" | sed '1i TAR' | column -t | fzf \
-    --multi \
-    --header-lines=1 \
-      --bind 'enter:execute-multi(sh fzf_images _fzf_images_action_load {1})+abort'
-}
-
-# ! set this to run on fzf-tmux -p
-# ! push image to remote
-# ! image rm
 _fzf_images_fzf_local(){
   $FZF_IMAGES_CLIENT images | fzf \
     --multi \
     --header-lines=1 \
       --bind 'space:toggle-preview' \
       --bind 'enter:execute-silent(sh fzf_images _fzf_images_action_run {3})+abort' \
-      --bind 'ctrl-i:preview(sh fzf_images _fzf_images_preview_inspect {3} | bat --plain -l json)' \
+      --bind 'ctrl-h:preview(sh fzf_images _fzf_images_preview_inspect {3} | bat --plain -l json)' \
     --preview-window right,60%
 }
 
 #####################
 ### ACTION
 #####################
-
-# ! echo $LOADED from the fzf process but to the tmux pane? goal is to only see the output
-_fzf_images_action_load(){
-  for i in $(echo "$@" ); do 
-    # LOADED+="$($FZF_IMAGES_CLIENT load -i $i)\n"
-    $FZF_IMAGES_CLIENT load -i $i
-  done
-  # tmux send-keys "echo -e \"$LOADED\""
-}
+# ! scan with trivy
+# ! push image to remote
+# ! rm image
 
 _fzf_images_action_run(){
   export $(tmux showenv | grep '^FZF_IMAGES_REGISTRY')
@@ -174,3 +151,4 @@ _fzf_images_auth_registry(){
 }
 
 $@
+
