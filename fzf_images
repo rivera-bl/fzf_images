@@ -20,7 +20,7 @@ _fzf_tmux_action_layout(){
   tmux setenv -u FZF_IMAGES_LAYOUT
   case $TMUX_LAYOUT in
     "")
-      $1 ;;
+      $1 $2;;
       # tmux send-keys -t right "sh fzf_images $1" Enter ;;
     "window")
       tmux neww zsh -c "$COMMAND $1 $2" ;;
@@ -47,6 +47,7 @@ _fzf_images_entry_selection(){
       "localhost")
         _fzf_tmux_action_layout _fzf_images_fzf_local ;;
       *)
+        # tmux send-keys $1
         _fzf_tmux_action_layout _fzf_images_fzf_registry $1 ;;
     esac
   fi
@@ -64,7 +65,6 @@ _fzf_images_fzf_registry(){
       --bind 'enter:execute-silent(sh fzf_images _fzf_images_action_run /{1}:{2})+abort' \
       --bind 'ctrl-p:execute-multi(sh fzf_images _fzf_images_action_pull {1},{2})+abort' \
       --bind 'ctrl-t:execute-multi(sh fzf_images _fzf_images_action_trivy {1},{2})+abort'
-  tmux setenv -u FZF_IMAGES_REGISTRY
 }
 
 # --header $'ctrl-d:rm | ctrl-p:push | ctrl-t:trivy\n' \
@@ -91,11 +91,12 @@ _fzf_images_action_pull(){
   IMAGES=($(awk -F ',' '{print $1}' <<< $@))
   TAGS=($(awk -F ',' '{print $2}' <<< $@))
 
+  # export "$AWS_PROFILE=default"
   # ?works in sh not zsh
   for (( i = 0; $i<${#IMAGES[@]}; i++ )); do
     PULLING="${IMAGES[i]}":"${TAGS[i]}"
     echo -e "\nPulling: $PULLING\n"
-    $FZF_IMAGES_CLIENT pull $PULLING
+    $FZF_IMAGES_CLIENT pull $FZF_IMAGES_REGISTRY/$PULLING
   done
   echo -e "\ndone!" && sleep 2s
 }
@@ -120,7 +121,7 @@ PUSHING="${IMAGES[i]}":"${TAGS[i]}"
 }
 
 _fzf_images_action_trivy(){
-  DIR=trivy-$(awk -F '_' '{print $1}' <<< $AWS_PROFILE)-$(date '+%m%d%Y%H%M%S')
+  DIR=trivy-$(awk -F '_' '{print $1}' <<< ${AWS_PROFILE:=default})-$(date '+%m%d%Y%H%M%S')
   IMAGES=($(awk -F ',' '{print $1}' <<< $@))
   TAGS=($(awk -F ',' '{print $2}' <<< $@))
 
@@ -128,7 +129,7 @@ _fzf_images_action_trivy(){
   for (( i = 0; $i<${#IMAGES[@]}; i++ )); do
     SCANNING="${IMAGES[i]}":"${TAGS[i]}"
     echo -e "\nScanning: $SCANNING\n"
-    trivy image $SCANNING | tee $DIR/${SCANNING##*/}.txt
+    trivy image $FZF_IMAGES_REGISTRY/$SCANNING | tee $DIR/${SCANNING##*/}.txt
   done
 }
 
@@ -167,9 +168,13 @@ _fzf_images_preview_inspect(){
 # ! split PUSHED by date/time
 # ! sort based on date/time in descending order
 _fzf_images_tags_registry(){
-  if [[ ! -z "$1" ]]; then _fzf_images_auth_registry $1; fi
+  # tmux send-keys "echo $AWS_PROFILE"
+  # tmux send-keys "_fzf_images_auth_registry $1"
+  # if [[ ! -z "$1" ]]; then _fzf_images_auth_registry $1; fi
+  _fzf_images_auth_registry $1; 
   mkdir -p $FZF_IMAGES_TAGS_REGISTRY_DIR
   FZF_IMAGES_TAGS_REGISTRY_FILE=$FZF_IMAGES_TAGS_REGISTRY_DIR/$1
+  # tmux send-keys "$FZF_IMAGES_TAGS_REGISTRY_FILE"
 
   if [[ -f "$FZF_IMAGES_TAGS_REGISTRY_FILE" ]]; then
     cat $FZF_IMAGES_TAGS_REGISTRY_FILE
@@ -197,10 +202,15 @@ _fzf_images_get_registry(){
 
 # note: this assumes that theres a profile defined in .aws/credentials in the format [ACCOUNT_*]
 _fzf_images_auth_registry(){
+  # tmux send-keys "$FZF_IMAGES_REGISTRY_AWS_ACCOUNT"
   FZF_IMAGES_REGISTRY_AWS_ACCOUNT=$(echo "$1" | awk -F '.' '{print $1}')
   FZF_IMAGES_REGISTRY_AWS_PROFILE=$(cat ~/.aws/credentials | \
     grep -o -P "(?<=\[)$FZF_IMAGES_REGISTRY_AWS_ACCOUNT.*(?=\])")
-  AWS_PROFILE=$FZF_IMAGES_REGISTRY_AWS_PROFILE
+  AWS_PROFILE="${FZF_IMAGES_REGISTRY_AWS_PROFILE:=default}"
+  # ! fix this
+  # tmux send-keys "$FZF_IMAGES_REGISTRY_AWS_ACCOUNT"
+  # tmux send-keys "$FZF_IMAGES_REGISTRY_AWS_PROFILE"
+  # tmux send-keys "$AWS_PROFILE"
 }
 
 $@
