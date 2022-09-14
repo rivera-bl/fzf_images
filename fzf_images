@@ -1,29 +1,37 @@
 #!/bin/sh
 
-FZF_IMAGES_CLIENT="podman"
+FZF_IMAGES_CLIENT="docker"
 FZF_IMAGES_TAGS_REGISTRY_DIR=/tmp/.fzf_images_cache
 FZF_IMAGES_ENTRIES=("tar"
                     "local")
 AWS_REGION="us-east-1" # set with tmux setenv outside of the script
 
-# $1 key, $2 value
+# $2 value
 _fzf_tmux_layout_setenv(){
   tmux setenv FZF_IMAGES_LAYOUT $1 && export $(tmux showenv | grep "^FZF_IMAGES_LAYOUT")
 }
 
-# ! function to define the layout and location of the execution in tmux based on case $1
-# ! define in another file
-# ! finish layout_split, send-keys to current window pane
-# ! case pane,window,split
+#
+# Define the layout and location of the execution in tmux based on $1
 _fzf_tmux_action_layout(){
   TMUX_LAYOUT=$(tmux showenv | grep "^FZF_IMAGES_LAYOUT" | awk -F '=' '{print $2}')
+  COMMAND="clear_screen 2>/dev/null && sh ~/code/fzf_images/fzf_images"
+  tmux setenv -u FZF_IMAGES_LAYOUT
   case $TMUX_LAYOUT in
-    "pane")
+    "")
       $1 ;;
+    "right-pane")
+      tmux send-keys -t right "$COMMAND $1" ;;
+    "left-pane")
+      tmux send-keys -t left "$COMMAND $1" ;;
     "window")
-      tmux neww zsh -c "sh ~/code/fzf_images/fzf_images $1" ;;
+      tmux neww zsh -c "$COMMAND $1" ;;
     "split")
-      _fzf_images_fzf_local ;;
+      tmux new-window && tmux split-window -h && \
+        tmux setw synchronize-panes on && \
+        tmux send-keys "$COMMAND $1"  Enter ;;
+    # "*")
+    #   $1 ;;
   esac
   # echo hola # pane
   # tmux neww zsh -c "source ~/code/fzf_images/fzf_images; sh fzf_images _fzf_images_menu"# window
@@ -39,8 +47,9 @@ _fzf_images_menu(){
   _fzf_images_entry_selection \
     $(printf "%s\n" "${FZF_IMAGES_ENTRIES[@]}" | \
       fzf-tmux -p \
-      --bind 'ctrl-h:execute(sh fzf_images _fzf_tmux_layout_setenv "pane")+accept' \
-      --bind 'ctrl-o:execute(sh fzf_images _fzf_tmux_layout_setenv "window")+accept')
+      --bind 'ctrl-l:execute(sh fzf_images _fzf_tmux_layout_setenv "right-pane")+accept'   \
+      --bind 'ctrl-w:execute(sh fzf_images _fzf_tmux_layout_setenv "window")+accept' \
+      --bind 'ctrl-v:execute-multi(sh fzf_images _fzf_tmux_layout_setenv "split")+accept')
 }
 
 # ! run selection on tmux-fzf or another window and send to previous pane
