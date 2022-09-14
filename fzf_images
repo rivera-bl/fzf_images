@@ -20,14 +20,14 @@ _fzf_tmux_action_layout(){
   tmux setenv -u FZF_IMAGES_LAYOUT
   case $TMUX_LAYOUT in
     "")
-      # $1 ;;
-      tmux send-keys -t right "sh fzf_images $1" Enter ;;
+      $1 ;;
+      # tmux send-keys -t right "sh fzf_images $1" Enter ;;
     "window")
-      tmux neww zsh -c "$COMMAND $1" ;;
+      tmux neww zsh -c "$COMMAND $1 $2" ;;
     "split")
       tmux new-window && tmux split-window -h && \
         tmux setw synchronize-panes on && \
-        tmux send-keys "clear_screen 2>/dev/null && $COMMAND $1"  Enter ;;
+        tmux send-keys "clear_screen 2>/dev/null && $COMMAND $1 $2"  Enter ;;
   esac
 }
 
@@ -47,7 +47,7 @@ _fzf_images_entry_selection(){
       "localhost")
         _fzf_tmux_action_layout _fzf_images_fzf_local ;;
       *)
-        _fzf_images_fzf_registry $1 ;;
+        _fzf_tmux_action_layout _fzf_images_fzf_registry $1 ;;
     esac
   fi
 }
