@@ -58,7 +58,8 @@ _fzf_images_fzf_registry(){
   _fzf_images_tags_registry $1 | fzf \
     --multi \
     --header-lines=1 \
-      --bind 'enter:execute-silent(sh fzf_images _fzf_images_action_run /{1}:{2})+abort'
+      --bind 'enter:execute-silent(sh fzf_images _fzf_images_action_run /{1}:{2})+abort' \
+      --bind 'ctrl-t:execute-multi(sh fzf_images _fzf_images_action_trivy {1},{2})+abort'
   tmux setenv -u FZF_IMAGES_REGISTRY
 }
 
@@ -104,15 +105,12 @@ _fzf_images_action_trivy(){
   IMAGES=($(awk -F ',' '{print $1}' <<< $@))
   TAGS=($(awk -F ',' '{print $2}' <<< $@))
 
-  mkdir $DIR
-  trivy --version > $DIR/_version.txt
-
+  mkdir $DIR && trivy --version > $DIR/_version.txt
   for (( i = 0; $i<${#IMAGES[@]}; i++ )); do
     SCANNING="${IMAGES[i]}":"${TAGS[i]}"
     echo -e "\nScanning: $SCANNING\n"
     trivy image $SCANNING | tee $DIR/${SCANNING##*/}.txt
   done
-  echo -e "\ndone!" && sleep 2s
 }
 
 _fzf_images_action_run(){
