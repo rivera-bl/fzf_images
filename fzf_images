@@ -52,6 +52,7 @@ _fzf_tmux_layout_setenv(){
 ### ENTRIES
 #####################
 
+# ! ctrl-r to reload the list
 _fzf_images_fzf_registry(){
   tmux setenv FZF_IMAGES_REGISTRY $1 && \
     export $(tmux showenv | grep '^FZF_IMAGES_REGISTRY')
@@ -156,7 +157,6 @@ _fzf_images_preview_inspect(){
 ### HELPERS
 #####################
 
-# note: doesn't show untagged images because no [] sending error to /dev/null
 # ! show size in MB
 # ! split PUSHED by date/time
 # ! sort based on date/time in descending order
@@ -173,7 +173,7 @@ _fzf_images_tags_registry(){
       jq -r ".repositories[].repositoryName")
     for repo in ${FZF_IMAGES_REGISTRY_REPOS[@]} ; do
       FZF_IMAGES_REGISTRY_IMAGES+="$(aws ecr describe-images --repository-name $repo --region $AWS_REGION | \
-        jq -r '.imageDetails[] | "\(.repositoryName) \(.imageTags[]) \(.imagePushedAt) \(.imageSizeInBytes)"' 2>/dev/null)\n"
+        jq -r '.imageDetails[] | "\(.repositoryName) \(.imageTags[]?) \(.imagePushedAt) \(.imageSizeInBytes)"')\n"
     done
     echo -e "$FZF_IMAGES_REGISTRY_IMAGES" | \
       sort | sed '1i REPOSITORY TAG PUSHED SIZE' | column -t | \
