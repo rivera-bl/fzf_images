@@ -1,7 +1,5 @@
 #!/bin/sh
 
-#! fix docker login, try nixos-unstable?
-
 FZF_IMAGES_CLIENT="docker"
 FZF_IMAGES_TAGS_REGISTRY_DIR=/tmp/.fzf_images_cache
 FZF_IMAGES_ENTRIES=("localhost")
@@ -21,7 +19,6 @@ _fzf_tmux_action_layout(){
   case $TMUX_LAYOUT in
     "")
       $1 $2;;
-      # tmux send-keys -t right "sh fzf_images $1" Enter ;;
     "window")
       tmux neww zsh -c "$COMMAND $1 $2" ;;
     "split")
@@ -47,7 +44,6 @@ _fzf_images_entry_selection(){
       "localhost")
         _fzf_tmux_action_layout _fzf_images_fzf_local ;;
       *)
-        # tmux send-keys $1
         _fzf_tmux_action_layout _fzf_images_fzf_registry $1 ;;
     esac
   fi
@@ -58,7 +54,8 @@ _fzf_images_entry_selection(){
 #####################
 
 _fzf_images_fzf_registry(){
-  tmux setenv FZF_IMAGES_REGISTRY $1
+  tmux setenv FZF_IMAGES_REGISTRY $1 && \
+    export $(tmux showenv | grep '^FZF_IMAGES_REGISTRY')
   _fzf_images_tags_registry $1 | fzf \
     --multi \
     --header-lines=1 \
@@ -85,17 +82,14 @@ _fzf_images_fzf_local(){
 #####################
 ### ACTION
 #####################
-# ! pull action
 
 _fzf_images_action_pull(){
   IMAGES=($(awk -F ',' '{print $1}' <<< $@))
   TAGS=($(awk -F ',' '{print $2}' <<< $@))
 
-  # export "$AWS_PROFILE=default"
-  # ?works in sh not zsh
   for (( i = 0; $i<${#IMAGES[@]}; i++ )); do
     PULLING="${IMAGES[i]}":"${TAGS[i]}"
-    echo -e "\nPulling: $PULLING\n"
+    echo -e "\nPulling: $FZF_IMAGES_REGISTRY/$PULLING\n"
     $FZF_IMAGES_CLIENT pull $FZF_IMAGES_REGISTRY/$PULLING
   done
   echo -e "\ndone!" && sleep 2s
@@ -104,6 +98,7 @@ _fzf_images_action_pull(){
 # ! add confirmation
 _fzf_images_action_rm(){
   $FZF_IMAGES_CLIENT image rm $@ --force
+  echo -e "\ndone!" && sleep 2s
 }
 
 # ! tmux send-keys show output of what was pushed
@@ -128,13 +123,12 @@ _fzf_images_action_trivy(){
   mkdir $DIR && trivy --version > $DIR/_version.txt
   for (( i = 0; $i<${#IMAGES[@]}; i++ )); do
     SCANNING="${IMAGES[i]}":"${TAGS[i]}"
-    echo -e "\nScanning: $SCANNING\n"
+    echo -e "\nScanning: $FZF_IMAGES_REGISTRY/$SCANNING\n"
     trivy image $FZF_IMAGES_REGISTRY/$SCANNING | tee $DIR/${SCANNING##*/}.txt
   done
 }
 
 _fzf_images_action_run(){
-  export $(tmux showenv | grep '^FZF_IMAGES_REGISTRY')
   PORT=$(tmux showenv | grep '^FZF_IMAGES_PORT' | awk -F '=' '{print $2}')
   if [[ -z "$PORT" ]]; then
     COMMAND="run -ti --rm"
@@ -168,13 +162,10 @@ _fzf_images_preview_inspect(){
 # ! split PUSHED by date/time
 # ! sort based on date/time in descending order
 _fzf_images_tags_registry(){
-  # tmux send-keys "echo $AWS_PROFILE"
-  # tmux send-keys "_fzf_images_auth_registry $1"
   # if [[ ! -z "$1" ]]; then _fzf_images_auth_registry $1; fi
   _fzf_images_auth_registry $1; 
   mkdir -p $FZF_IMAGES_TAGS_REGISTRY_DIR
   FZF_IMAGES_TAGS_REGISTRY_FILE=$FZF_IMAGES_TAGS_REGISTRY_DIR/$1
-  # tmux send-keys "$FZF_IMAGES_TAGS_REGISTRY_FILE"
 
   if [[ -f "$FZF_IMAGES_TAGS_REGISTRY_FILE" ]]; then
     cat $FZF_IMAGES_TAGS_REGISTRY_FILE
@@ -200,17 +191,12 @@ _fzf_images_get_registry(){
   cat $AUTH_FILE | jq -r '.credHelpers | keys[]'
 }
 
-# note: this assumes that theres a profile defined in .aws/credentials in the format [ACCOUNT_*]
+# note: this assumes that theres a profile defined in .aws/credentials in the format [ACCOUNT_*], if null use default
 _fzf_images_auth_registry(){
-  # tmux send-keys "$FZF_IMAGES_REGISTRY_AWS_ACCOUNT"
   FZF_IMAGES_REGISTRY_AWS_ACCOUNT=$(echo "$1" | awk -F '.' '{print $1}')
   FZF_IMAGES_REGISTRY_AWS_PROFILE=$(cat ~/.aws/credentials | \
     grep -o -P "(?<=\[)$FZF_IMAGES_REGISTRY_AWS_ACCOUNT.*(?=\])")
   AWS_PROFILE="${FZF_IMAGES_REGISTRY_AWS_PROFILE:=default}"
-  # ! fix this
-  # tmux send-keys "$FZF_IMAGES_REGISTRY_AWS_ACCOUNT"
-  # tmux send-keys "$FZF_IMAGES_REGISTRY_AWS_PROFILE"
-  # tmux send-keys "$AWS_PROFILE"
 }
 
 $@
