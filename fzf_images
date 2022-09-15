@@ -6,12 +6,28 @@ FZF_IMAGES_ENTRIES=("localhost")
 
 AWS_REGION="us-east-1" # ! set with tmux setenv outside of the script
 
-# $1 env value
-_fzf_tmux_layout_setenv(){
-  tmux setenv FZF_IMAGES_LAYOUT $1 && export $(tmux showenv | grep "^FZF_IMAGES_LAYOUT")
+_fzf_images_menu(){ 
+  REGISTRIES=$(_fzf_images_get_registry)
+  FZF_IMAGES_ENTRIES=("${FZF_IMAGES_ENTRIES[@]}" "${REGISTRIES[@]}")
+  _fzf_images_entry_selection \
+    $(printf "%s\n" "${FZF_IMAGES_ENTRIES[@]}" | \
+      fzf-tmux -p \
+      --bind 'ctrl-o:execute(sh fzf_images _fzf_tmux_layout_setenv "window")+accept' \
+      --bind 'ctrl-v:execute-multi(sh fzf_images _fzf_tmux_layout_setenv "split")+accept'
+    )
 }
 
-# Define the layout and location of the execution in tmux based on $1
+_fzf_images_entry_selection(){ 
+  if [ ! -z "$1" ]; then 
+    case $1 in
+      "localhost")
+        _fzf_tmux_action_layout _fzf_images_fzf_local ;;
+      *)
+        _fzf_tmux_action_layout _fzf_images_fzf_registry $1 ;;
+    esac
+  fi
+}
+
 _fzf_tmux_action_layout(){
   TMUX_LAYOUT=$(tmux showenv | grep "^FZF_IMAGES_LAYOUT" | awk -F '=' '{print $2}')
   COMMAND="sh ~/code/fzf_images/fzf_images"
@@ -28,25 +44,8 @@ _fzf_tmux_action_layout(){
   esac
 }
 
-_fzf_images_menu(){ 
-  REGISTRIES=$(_fzf_images_get_registry)
-  FZF_IMAGES_ENTRIES=("${FZF_IMAGES_ENTRIES[@]}" "${REGISTRIES[@]}")
-  _fzf_images_entry_selection \
-    $(printf "%s\n" "${FZF_IMAGES_ENTRIES[@]}" | \
-      fzf-tmux -p \
-      --bind 'ctrl-o:execute(sh fzf_images _fzf_tmux_layout_setenv "window")+accept' \
-      --bind 'ctrl-v:execute-multi(sh fzf_images _fzf_tmux_layout_setenv "split")+accept')
-}
-
-_fzf_images_entry_selection(){ 
-  if [ ! -z "$1" ]; then 
-    case $1 in
-      "localhost")
-        _fzf_tmux_action_layout _fzf_images_fzf_local ;;
-      *)
-        _fzf_tmux_action_layout _fzf_images_fzf_registry $1 ;;
-    esac
-  fi
+_fzf_tmux_layout_setenv(){
+  tmux setenv FZF_IMAGES_LAYOUT $1 && export $(tmux showenv | grep "^FZF_IMAGES_LAYOUT")
 }
 
 #####################
@@ -59,6 +58,7 @@ _fzf_images_fzf_registry(){
   _fzf_images_tags_registry $1 | fzf \
     --multi \
     --header-lines=1 \
+    --prompt "$(awk -F '.' '{print $1}' <<< $FZF_IMAGES_REGISTRY)> " \
       --bind 'enter:execute-silent(sh fzf_images _fzf_images_action_run /{1}:{2})+abort' \
       --bind 'ctrl-p:execute-multi(sh fzf_images _fzf_images_action_pull {1},{2})+abort' \
       --bind 'ctrl-t:execute-multi(sh fzf_images _fzf_images_action_trivy {1},{2})+abort'
@@ -68,8 +68,9 @@ _fzf_images_fzf_registry(){
 _fzf_images_fzf_local(){
   $FZF_IMAGES_CLIENT images | fzf \
     --multi \
+    --height 90% \
     --header-lines=1 \
-    --prompt "$(awk -F '_' '{print $1}' <<< $AWS_PROFILE)> " \
+    --prompt "$(awk -F '_' '{print $1}' <<< ${AWS_PROFILE:=default})> " \
       --bind 'ctrl-h:toggle-preview' \
       --bind 'enter:execute-silent(sh fzf_images _fzf_images_action_run {3})+abort' \
       --bind 'ctrl-d:execute-multi(sh fzf_images _fzf_images_action_rm {3})+abort' \
@@ -105,10 +106,8 @@ _fzf_images_action_rm(){
 _fzf_images_action_push(){
   IMAGES=($(awk -F ',' '{print $1}' <<< $@))
   TAGS=($(awk -F ',' '{print $2}' <<< $@))
-
-  # ?works in sh not zsh
   for (( i = 0; $i<${#IMAGES[@]}; i++ )); do
-PUSHING="${IMAGES[i]}":"${TAGS[i]}"
+    PUSHING="${IMAGES[i]}":"${TAGS[i]}"
     echo -e "\nPushing: $PUSHING\n"
     $FZF_IMAGES_CLIENT push $PUSHING
   done
@@ -191,7 +190,8 @@ _fzf_images_get_registry(){
   cat $AUTH_FILE | jq -r '.credHelpers | keys[]'
 }
 
-# note: this assumes that theres a profile defined in .aws/credentials in the format [ACCOUNT_*], if null use default
+# note: this assumes that theres a profile defined in .aws/credentials 
+# in the format [ACCOUNT_*], if null use default
 _fzf_images_auth_registry(){
   FZF_IMAGES_REGISTRY_AWS_ACCOUNT=$(echo "$1" | awk -F '.' '{print $1}')
   FZF_IMAGES_REGISTRY_AWS_PROFILE=$(cat ~/.aws/credentials | \
