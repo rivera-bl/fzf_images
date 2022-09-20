@@ -66,6 +66,7 @@ _fzf_images_fzf_registry(){
 }
 
 # --header $'ctrl-d:rm | ctrl-p:push | ctrl-t:trivy\n' \
+# --bind 'ctrl-t:change-preview(ls | bat)' \
 _fzf_images_fzf_local(){
   $FZF_IMAGES_CLIENT images | fzf \
     --multi \
@@ -120,7 +121,7 @@ _fzf_images_action_trivy(){
   IMAGES=($(awk -F ',' '{print $1}' <<< $@))
   TAGS=($(awk -F ',' '{print $2}' <<< $@))
 
-  mkdir $DIR && trivy --version > $DIR/_version.txt
+  mkdir -p $DIR && trivy --version > $DIR/_version.txt
   for (( i = 0; $i<${#IMAGES[@]}; i++ )); do
     SCANNING="${IMAGES[i]}":"${TAGS[i]}"
     echo -e "\nScanning: $FZF_IMAGES_REGISTRY/$SCANNING\n"
