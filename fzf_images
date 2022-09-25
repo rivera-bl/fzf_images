@@ -65,7 +65,7 @@ _registry(){
     --multi \
     --header-lines=1 \
     --prompt "$(awk -F '.' '{print $1}' <<< $FZF_IMAGES_REGISTRY)> " \
-      --bind 'enter:execute-silent(sh ~/code/github/fzf_images/fzf_images /{1}:{2})+abort' \
+      --bind 'enter:execute-silent(sh ~/code/github/fzf_images/fzf_images _action_run /{1}:{2})+abort' \
       --bind 'ctrl-p:execute-multi(sh ~/code/github/fzf_images/fzf_images _action_pull {1},{2})+abort' \
       --bind 'ctrl-t:execute-multi(sh ~/code/github/fzf_images/fzf_images _action_trivy {1},{2})+abort'
 }
@@ -73,19 +73,18 @@ _registry(){
 # --header $'ctrl-d:rm | ctrl-p:push | ctrl-t:trivy\n' \
 # --bind 'ctrl-t:change-preview(ls | bat)' \
 _local(){
-  
   $FZF_IMAGES_CLIENT images | fzf \
     --multi \
     --height 90% \
     --header-lines=1 \
     --prompt "$(awk -F '_' '{print $1}' <<< ${AWS_PROFILE:=default})> " \
-      --bind 'ctrl-h:toggle-preview' \
+      --bind 'ctrl-space:toggle-preview' \
       --bind 'enter:execute-silent(sh ~/code/github/fzf_images/fzf_images _action_run {3})+abort' \
       --bind 'ctrl-d:execute-multi(sh ~/code/github/fzf_images/fzf_images _action_rm {3})+abort' \
       --bind 'ctrl-p:execute-multi(sh ~/code/github/fzf_images/fzf_images _action_push {1},{2})+abort' \
       --bind 'ctrl-t:execute-multi(sh ~/code/github/fzf_images/fzf_images _action_trivy {1},{2})+abort' \
     --preview-window right,hidden,60% \
-    --preview '_preview_inspect {3} | bat --plain -l json'
+    --preview 'sh ~/code/github/fzf_images/fzf_images _preview_inspect {3} | bat --plain -l json'
 }
 
 #####################
@@ -131,7 +130,8 @@ _action_trivy(){
   for (( i = 0; $i<${#IMAGES[@]}; i++ )); do
     SCANNING="${IMAGES[i]}":"${TAGS[i]}"
     echo -e "\nScanning: $FZF_IMAGES_REGISTRY/$SCANNING\n"
-    trivy image $FZF_IMAGES_REGISTRY/$SCANNING | tee $DIR/${SCANNING##*/}.txt
+    trivy image $FZF_IMAGES_REGISTRY/$SCANNING 2>/dev/null || trivy image $FZF_IMAGES_REGISTRY$SCANNING | \
+      tee $DIR/${SCANNING##*/}.txt
   done
 }
 
