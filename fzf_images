@@ -3,6 +3,7 @@
 FZF_IMAGES_CLIENT="docker"
 FZF_IMAGES_TAGS_REGISTRY_DIR=/tmp/.fzf_images_cache
 FZF_IMAGES_ENTRIES=("localhost")
+COMMAND="sh ~/code/github/fzf_images/fzf_images"
 
 AWS_REGION="us-east-1" # ! set with tmux setenv outside of the script
 
@@ -12,8 +13,8 @@ _fzf_images_menu(){
   _fzf_images_entry_selection \
     $(printf "%s\n" "${FZF_IMAGES_ENTRIES[@]}" | \
       fzf-tmux -p \
-      --bind 'ctrl-o:execute(sh fzf_images _fzf_tmux_layout_setenv "window")+accept' \
-      --bind 'ctrl-v:execute-multi(sh fzf_images _fzf_tmux_layout_setenv "split")+accept'
+      --bind 'ctrl-o:execute(sh ~/code/github/fzf_images/fzf_images _fzf_tmux_layout_setenv "window")+accept' \
+      --bind 'ctrl-v:execute-multi(sh ~/code/github/fzf_images/fzf_images _fzf_tmux_layout_setenv "split")+accept'
     )
 }
 
@@ -30,11 +31,13 @@ _fzf_images_entry_selection(){
 
 _fzf_tmux_action_layout(){
   TMUX_LAYOUT=$(tmux showenv | grep "^FZF_IMAGES_LAYOUT" | awk -F '=' '{print $2}')
-  COMMAND="sh ~/code/fzf_images/fzf_images"
   tmux setenv -u FZF_IMAGES_LAYOUT
   case $TMUX_LAYOUT in
     "")
-      $1 $2;;
+      tmux select-pane -t right && \
+      tmux send-keys -t right "$COMMAND $1 $2" Enter;;
+      # tmux send-keys -t right C-w;;
+      # tmux -c 'sh /home/wim/code/github/fzf_images/fzf_images _fzf_images_fzf_local';;
     "window")
       tmux neww zsh -c "$COMMAND $1 $2" ;;
     "split")
