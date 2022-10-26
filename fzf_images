@@ -58,6 +58,7 @@ _tmux_layout_setenv(){
 #####################
 
 # ! ctrl-r to reload the list
+# --bind "!:reload(rm /tmp/.fzf_images_cache/161642046998.dkr.ecr.us-east-1.amazonaws.com && sh ~/code/github/fzf_images/fzf_images _tags_registry \$(echo \$FZF_IMAGES_REGISTRY | awk -F '=' '{print \$2}'))"
 _registry(){
   tmux setenv FZF_IMAGES_REGISTRY $1 && \
     export $(tmux showenv | grep '^FZF_IMAGES_REGISTRY')
@@ -130,7 +131,7 @@ _action_trivy(){
   for (( i = 0; $i<${#IMAGES[@]}; i++ )); do
     SCANNING="${IMAGES[i]}":"${TAGS[i]}"
     echo -e "\nScanning: $FZF_IMAGES_REGISTRY/$SCANNING\n"
-    trivy image $FZF_IMAGES_REGISTRY/$SCANNING 2>/dev/null || trivy image $FZF_IMAGES_REGISTRY$SCANNING | \
+    trivy image $FZF_IMAGES_REGISTRY/$SCANNING || trivy image $FZF_IMAGES_REGISTRY$SCANNING | \
       tee $DIR/${SCANNING##*/}.txt
   done
 }
